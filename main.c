@@ -140,7 +140,7 @@ int main(int argc, char *argv[])
         }
 
         // //combine grad
-        ierr = MPI_Reduce(&part_grad, &grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
         if (machine_id == 0)
         {
