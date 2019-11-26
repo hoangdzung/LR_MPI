@@ -11,10 +11,11 @@ void shuffle(int *array, size_t n);
     
 int main(int argc, char *argv[])
 {
-    int max_step = 2;
-    int batch_size = 64;
+    int debug = 0;
+    int max_step = 1000000;
+    int batch_size = 2;
     int step = 0;
-    float lr = 0.001;
+    double lr = 1;
     
     int n_samples;
     int data_dim;
@@ -26,9 +27,9 @@ int main(int argc, char *argv[])
 
     int dummpy = 0;
     // Read Hyperparams
-    // if (argc > 1) {
-    //     max_step = atoi(argv[1]);
-    // } else max_step = 100;
+    if (argc > 1) {
+        debug = atoi(argv[1]);
+    }
     
     // Read matrix data 
 
@@ -44,6 +45,7 @@ int main(int argc, char *argv[])
     fscanf(file, "%d", &n_samples);
     fscanf(file, "%d", &data_dim);
     
+    int n_batches = (int) n_samples/batch_size;
     data_dim = data_dim -1;
     double *W = (double *) malloc(data_dim * sizeof(double));
     double *grad = (double *) malloc(data_dim * sizeof(double));
@@ -86,32 +88,35 @@ int main(int argc, char *argv[])
     if (machine_id == 0)
     {   
         timestamp ( );
-        printf("X data\n");
-        for (int i=0;i<n_samples;i++) {
-            for (int j=0;j<data_dim;j++) {
-                printf("%lf ",X[i][j]);
+        if (debug) {
+            printf("X data\n");
+            for (int i=0;i<n_samples;i++) {
+                for (int j=0;j<data_dim;j++) {
+                    printf("%lf ",X[i][j]);
+                }
+                printf("\n");
             }
             printf("\n");
-        }
-        printf("\n");
 
-        printf("Y data\n");
-        for (int i=0;i<n_samples;i++) {
-            printf("%lf ",Y[i]);
+            printf("Y data\n");
+            for (int i=0;i<n_samples;i++) {
+                printf("%lf ",Y[i]);
+            }
+            printf("\n");
+            
+            printf("The number of processes is %d\n", n_machines);
+            printf("Number of steps: %d\n", max_step);
         }
-        printf("\n");
-        
-        printf("The number of processes is %d\n", n_machines);
-        printf("Number of steps: %d\n", max_step);
-
         // Weight init
         for (int i=0;i<data_dim;i++) {
             W[i] = (double)rand()/(double)(RAND_MAX);
         }
 
-        // Print init weight
-        for(int i=0;i<data_dim;i++) 
-            printf("Init W %lf\n", W[i]);
+        if (debug) {
+            // Print init weight
+            for(int i=0;i<data_dim;i++) 
+                printf("Init W %lf\n", W[i]);
+        }
     }
 
     // BCast init weight to all machine
@@ -127,7 +132,7 @@ int main(int argc, char *argv[])
 
         // BCast shuffled index to all machine
         ierr = MPI_Bcast (index, n_samples, MPI_INT, 0, MPI_COMM_WORLD );
-        
+
         // split data 
         // ierr = MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
@@ -139,22 +144,46 @@ int main(int argc, char *argv[])
             part_grad[i] = step;
         }
 
-        // //combine grad
-        ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        /*
+            Combine grad and update weight using REDUCE
+        */
+        /* ===================================================================================*/
+        // ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
-        if (machine_id == 0)
-        {
-            for (int i =0;i<data_dim;i++) {
-                W[i] -= lr * grad[i];
-            }
-            wtime = MPI_Wtime() - wtime;
-            printf ( "Step %d time %14f\n", step, wtime );
+        // if (machine_id == 0)
+        // {
+        //     for (int i =0;i<data_dim;i++) {
+        //         W[i] = W[i] -lr * grad[i];
+        //     }
+        //     wtime = MPI_Wtime() - wtime;
+        //     // printf ( "Step %d time %14f\n", step, wtime );
+        // }
+        // // BCast updated weight to all machine
+        // ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+        /* ===================================================================================*/
+
+        /*
+            Combine grad and update weight using REDUCE
+        */
+        /* ===================================================================================*/
+        ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        for (int i =0;i<data_dim;i++) {
+            W[i] = W[i] -lr * grad[i];
         }
-        ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+        /* ===================================================================================*/
+        if (debug) {
+            for(int i=0;i<data_dim;i++) 
+                printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
+        } 
+
         step++;
     }
-    for(int i=0;i<data_dim;i++) 
-        printf("Machine %d: W %lf\n", machine_id, W[i]);
+    if (debug) {
+        for(int i=0;i<data_dim;i++) 
+            printf("Machine %d: W %lf\n", machine_id, W[i]);
+    }
+
     /*
         Terminate MPI.
     */
