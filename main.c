@@ -11,6 +11,7 @@ void timestamp ( );
 int main(int argc, char *argv[])
 {
     int max_step = 100;
+    int batch_size = 64;
     int step = 0;
     float lr = 0.001;
     
@@ -43,6 +44,10 @@ int main(int argc, char *argv[])
     
     data_dim = data_dim -1;
     double *W = malloc(data_dim * sizeof(double));
+    
+    int *index = malloc(n_sample*sizeof(int));
+    for (int i=0;i<n_sample;i++) 
+        index[i] = i;
 
     for (int i = 0; i < n_sample; i++) {
         for (int j = 0; j < data_dim; j++)
