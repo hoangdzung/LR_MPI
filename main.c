@@ -53,7 +53,9 @@ int main(int argc, char *argv[])
 
     int *index = (int *) malloc(n_samples*sizeof(int));
 
-    
+    double **X_batch = (double **) malloc(batch_size * sizeof(double *));
+    double *Y_batch = (double *) malloc(batch_size * sizeof(double));
+
     for (int i = 0; i < n_samples; i++) {
         for (int j = 0; j < data_dim; j++)
             if (!fscanf(file, "%lf", &X[i][j]))
@@ -80,11 +82,6 @@ int main(int argc, char *argv[])
     */
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &machine_id);
 
-    if (machine_id==0) {
-        for (int i=0;i<n_samples;i++) 
-            index[i] = i;
-    }
-
     if (machine_id == 0)
     {   
         timestamp ( );
@@ -107,6 +104,11 @@ int main(int argc, char *argv[])
             printf("The number of processes is %d\n", n_machines);
             printf("Number of steps: %d\n", max_step);
         }
+        
+        // Index init
+        for (int i=0;i<n_samples;i++) 
+            index[i] = i;
+
         // Weight init
         for (int i=0;i<data_dim;i++) {
             W[i] = (double)rand()/(double)(RAND_MAX);
@@ -133,50 +135,45 @@ int main(int argc, char *argv[])
         // BCast shuffled index to all machine
         ierr = MPI_Bcast (index, n_samples, MPI_INT, 0, MPI_COMM_WORLD );
 
-        // split data 
-        // ierr = MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+        int batch_id = 0;
+        while(batch_id < n_batches) {
+            for (int i =0;i<data_dim;i++) {
+                part_grad[i] = step;
+            }
 
-        // cal grad
-        // primes_part = prime_number(n, id, p);
+            /*
+                Combine grad and update weight using REDUCE
+            */
+            /* ===================================================================================*/
+            // ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
+            // if (machine_id == 0)
+            // {
+            //     for (int i =0;i<data_dim;i++) {
+            //         W[i] = W[i] -lr * grad[i];
+            //     }
+            //     wtime = MPI_Wtime() - wtime;
+            //     // printf ( "Step %d time %14f\n", step, wtime );
+            // }
+            // // BCast updated weight to all machine
+            // ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+            /* ===================================================================================*/
 
-        for (int i =0;i<data_dim;i++) {
-            part_grad[i] = step;
+            /*
+                Combine grad and update weight using REDUCE
+            */
+            /* ===================================================================================*/
+            ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+            for (int i =0;i<data_dim;i++) {
+                W[i] = W[i] -lr * grad[i];
+            }
+            /* ===================================================================================*/
+            if (debug) {
+                for(int i=0;i<data_dim;i++) 
+                    printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
+            } 
         }
-
-        /*
-            Combine grad and update weight using REDUCE
-        */
-        /* ===================================================================================*/
-        // ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
-        // if (machine_id == 0)
-        // {
-        //     for (int i =0;i<data_dim;i++) {
-        //         W[i] = W[i] -lr * grad[i];
-        //     }
-        //     wtime = MPI_Wtime() - wtime;
-        //     // printf ( "Step %d time %14f\n", step, wtime );
-        // }
-        // // BCast updated weight to all machine
-        // ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
-        /* ===================================================================================*/
-
-        /*
-            Combine grad and update weight using REDUCE
-        */
-        /* ===================================================================================*/
-        ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-        for (int i =0;i<data_dim;i++) {
-            W[i] = W[i] -lr * grad[i];
-        }
-        /* ===================================================================================*/
-        if (debug) {
-            for(int i=0;i<data_dim;i++) 
-                printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
-        } 
-
         step++;
     }
     if (debug) {
