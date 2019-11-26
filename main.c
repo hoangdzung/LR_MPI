@@ -108,6 +108,8 @@ int main(int argc, char *argv[])
         for (int i=0;i<data_dim;i++) {
             W[i] = (double)rand()/(double)(RAND_MAX);
         }
+
+        // Print init weight
         for(int i=0;i<data_dim;i++) 
             printf("Init W %lf\n", W[i]);
     }
@@ -133,23 +135,22 @@ int main(int argc, char *argv[])
         // primes_part = prime_number(n, id, p);
 
 
-        // for (int i =0;i<data_dim;i++) {
-        //     grad[i] = W[i];
-        // }
+        for (int i =0;i<data_dim;i++) {
+            part_grad[i] = step;
+        }
 
         // //combine grad
-        // ierr = MPI_Reduce(&part_grad, &grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+        ierr = MPI_Reduce(&part_grad, &grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
         if (machine_id == 0)
         {
-            // for (int i =0;i<data_dim;i++) {
-            //     W[i] -= lr * grad[i];
-            // }
-            // ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+            for (int i =0;i<data_dim;i++) {
+                W[i] -= lr * grad[i];
+            }
             wtime = MPI_Wtime() - wtime;
             printf ( "Step %d time %14f\n", step, wtime );
         }
-        // n = n * n_factor;
+        ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
         step++;
     }
     for(int i=0;i<data_dim;i++) 
