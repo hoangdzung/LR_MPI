@@ -12,10 +12,10 @@ void shuffle(int *array, size_t n);
 int main(int argc, char *argv[])
 {
     int debug = 0;
-    int max_step = 1000000;
-    int batch_size = 2;
+    int max_step = 10000000;
+    int batch_size = 9;
     int step = 0;
-    double lr = 1;
+    double lr = 0.0000001;
     
     int n_samples;
     int data_dim;
@@ -53,9 +53,6 @@ int main(int argc, char *argv[])
 
     int *index = (int *) malloc(n_samples*sizeof(int));
 
-    double **X_batch = (double **) malloc(batch_size * sizeof(double *));
-    double *Y_batch = (double *) malloc(batch_size * sizeof(double));
-
     for (int i = 0; i < n_samples; i++) {
         for (int j = 0; j < data_dim; j++)
             if (!fscanf(file, "%lf", &X[i][j]))
@@ -66,7 +63,6 @@ int main(int argc, char *argv[])
 
     fclose(file);
     
-    int n_batches = (int) n_samples/batch_size;
     /*
         Initialize MPI.
     */
@@ -82,11 +78,20 @@ int main(int argc, char *argv[])
     */
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &machine_id);
 
+    int batch_size_per_machine = (int) batch_size/n_machines;
+
+    double **X_batch = (double **) malloc(batch_size_per_machine * sizeof(double *));
+    for (int i = 0; i < batch_size_per_machine; ++i)
+        X_batch[i] = malloc(data_dim * sizeof(double));
+        
+    double *Y_batch = (double *) malloc(batch_size_per_machine * sizeof(double));
+    double *temp_values = (double *) malloc(batch_size_per_machine * sizeof(double));
+
     if (machine_id == 0)
     {   
         timestamp ( );
         if (debug) {
-            printf("X data\n");
+            printf("\nX data\n");
             for (int i=0;i<n_samples;i++) {
                 for (int j=0;j<data_dim;j++) {
                     printf("%lf ",X[i][j]);
@@ -99,9 +104,9 @@ int main(int argc, char *argv[])
             for (int i=0;i<n_samples;i++) {
                 printf("%lf ",Y[i]);
             }
-            printf("\n");
+            printf("\n\n");
             
-            printf("The number of processes is %d\n", n_machines);
+            printf("Number of processes: %d\n", n_machines);
             printf("Number of steps: %d\n", max_step);
         }
         
@@ -115,9 +120,11 @@ int main(int argc, char *argv[])
         }
 
         if (debug) {
+            printf("Number of batch: %d\n\n",n_batches);
             // Print init weight
             for(int i=0;i<data_dim;i++) 
                 printf("Init W %lf\n", W[i]);
+            printf("\n");
         }
     }
 
@@ -136,10 +143,47 @@ int main(int argc, char *argv[])
         ierr = MPI_Bcast (index, n_samples, MPI_INT, 0, MPI_COMM_WORLD );
 
         int batch_id = 0;
+        int start = 0;
         while(batch_id < n_batches) {
-            for (int i =0;i<data_dim;i++) {
-                part_grad[i] = step;
+            start = batch_id * batch_size;
+            for (int i=0; i<batch_size_per_machine;i++) {
+                for (int j=0;j<data_dim;j++)
+                    X_batch[i][j] = X[start+machine_id*batch_size_per_machine+i][j];
+                Y_batch[i] = Y[start+machine_id*batch_size_per_machine+i];
             }
+
+            for(int i=0; i<batch_size_per_machine; ++i)
+            {
+                temp_values[i] = 0;
+            }
+            // XW-Y
+            for(int i=0; i<batch_size_per_machine; ++i) {
+                for(int j =0; j<data_dim; ++j)
+                {
+                    temp_values[i]+=X_batch[i][j]*W[j];
+                }
+                temp_values[i] -= Y_batch[i];
+            }
+            // X.T(XW-Y)
+            for(int i=0; i<data_dim; ++i) {
+                for(int j=0; j<batch_size_per_machine; ++j)
+                {
+                    part_grad[i]+=X_batch[j][i]*temp_values[j];
+                }
+            }
+
+            // for (int i=0;i<batch_size_per_machine;i++) {
+            //     printf("%d X[%d] %lf %lf\n",machine_id, i, X_batch[i][0],X_batch[i][1]);
+            // }
+
+            // for (int i=0;i<batch_size_per_machine;i++) {
+            //     printf("%d Y[%d] %lf \n",machine_id, i, Y_batch[i]);
+            // }
+
+
+            // for (int i =0;i<data_dim;i++) {
+            //     part_grad[i] = step;
+            // }
 
             /*
                 Combine grad and update weight using REDUCE
@@ -173,6 +217,7 @@ int main(int argc, char *argv[])
                 for(int i=0;i<data_dim;i++) 
                     printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
             } 
+            batch_id++;
         }
         step++;
     }
