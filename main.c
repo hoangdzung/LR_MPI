@@ -7,7 +7,8 @@
 
 int main(int argc, char *argv[]);
 void timestamp ( );
-
+void shuffle(int *array, size_t n);
+    
 int main(int argc, char *argv[])
 {
     int max_step = 100;
@@ -37,7 +38,7 @@ int main(int argc, char *argv[])
     double *Y = malloc(MAX_SIZE * sizeof(double));
 
     FILE *file;
-    file = fopen("a", "r");
+    file = fopen("matrix", "r");
     
     fscanf(file, "%d", &n_sample);
     fscanf(file, "%d", &data_dim);
@@ -104,6 +105,9 @@ int main(int argc, char *argv[])
         if (machine_id == 0)
         {
             wtime = MPI_Wtime();
+            shuffle(index, n_sample);
+            for(int i =0;i<n_sample;i++)
+                printf("%d ",index[i]);
         }
         // suffle data
 
@@ -121,6 +125,7 @@ int main(int argc, char *argv[])
         if (machine_id == 0)
         {
             wtime = MPI_Wtime() - wtime;
+            printf ( "Step %d time %14f\n", step, wtime );
         }
         // n = n * n_factor;
         step++;
@@ -197,4 +202,19 @@ void timestamp ( void )
 
   return;
 # undef TIME_SIZE
+}
+
+void shuffle(int *array, size_t n)
+{
+    if (n > 1) 
+    {
+        size_t i;
+        for (i = 0; i < n - 1; i++) 
+        {
+          size_t j = i + rand() / (RAND_MAX / (n - i) + 1);
+          int t = array[j];
+          array[j] = array[i];
+          array[i] = t;
+        }
+    }
 }
