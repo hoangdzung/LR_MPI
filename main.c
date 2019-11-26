@@ -3,28 +3,56 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#define MAX_SIZE 1000
 
 int main(int argc, char *argv[]);
 void timestamp ( );
 
 int main(int argc, char *argv[])
 {
-    int max_step;
+    int max_step = 100;
     int step = 0;
-    int id;
-    int ierr;
+    float lr = 0.001;
+    
+    int n_sample;
+    int data_dim;
 
-    int p;
-    int primes;
-    int primes_part;
+    int machine_id;
+    int n_machines;
+    int ierr;
     double wtime;
 
-	double total_time;
-	clock_t start, end;
+    // Read Hyperparams
+    // if (argc > 1) {
+    //     max_step = atoi(argv[1]);
+    // } else max_step = 100;
+    
+    // Read matrix data 
 
-    if (argc > 1) {
-        max_step = atoi(argv[1]);
-    } else max_step = 100;
+    double **X = malloc(MAX_SIZE * sizeof(double *));
+    for (int i = 0; i < MAX_SIZE; ++i)
+        X[i] = malloc(MAX_SIZE * sizeof(double));
+
+    double *Y = malloc(MAX_SIZE * sizeof(double));
+
+    FILE *file;
+    file = fopen("a", "r");
+    
+    fscanf(file, "%d", &n_sample);
+    fscanf(file, "%d", &data_dim);
+    
+    data_dim = data_dim -1;
+    double *W = malloc(data_dim * sizeof(double));
+
+    for (int i = 0; i < n_sample; i++) {
+        for (int j = 0; j < data_dim; j++)
+            if (!fscanf(file, "%lf", &X[i][j]))
+                break;
+        if (!fscanf(file, "%lf", &Y[i]))
+            break;
+    }
+
+    fclose(file);
     
     /*
         Initialize MPI.
@@ -34,38 +62,60 @@ int main(int argc, char *argv[])
     /*
         Get the number of processes.
     */
-    ierr = MPI_Comm_size(MPI_COMM_WORLD, &p);
+    ierr = MPI_Comm_size(MPI_COMM_WORLD, &n_machines);
     
     /*
         Determine this processes's rank.
     */
-    ierr = MPI_Comm_rank(MPI_COMM_WORLD, &id);
+    ierr = MPI_Comm_rank(MPI_COMM_WORLD, &machine_id);
 
-    if (id == 0)
+    if (machine_id == 0)
     {   
-        start = clock();
         timestamp ( );
-        printf("The number of processes is %d\n", p);
+        printf("X data\n");
+        for (int i=0;i<n_sample;i++) {
+            for (int j=0;j<data_dim;j++) {
+                printf("%lf ",X[i][j]);
+            }
+            printf("\n");
+        }
+        printf("\n");
+
+        printf("Y data\n");
+        for (int i=0;i<n_sample;i++) {
+            printf("%lf ",Y[i]);
+        }
+        printf("\n");
+        
+        printf("The number of processes is %d\n", n_machines);
         printf("Number of steps: %d\n", max_step);
+        for (int i=0;i<data_dim;i++) {
+            W[i] = (double)rand()/(double)(RAND_MAX);
+        }
     }
 
     while (step <= max_step)
     {
-        if (id == 0)
+        if (machine_id == 0)
         {
             wtime = MPI_Wtime();
         }
+        // suffle data
+
+
+        // split data 
         // ierr = MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
+        // cal grad
         // primes_part = prime_number(n, id, p);
 
+        //combine grad
         // ierr = MPI_Reduce(&primes_part, &primes, 1, MPI_INT, MPI_SUM, 0,
         //                   MPI_COMM_WORLD);
 
-        if (id == 0)
+        if (machine_id == 0)
         {
             wtime = MPI_Wtime() - wtime;
-            printf("  %8d  %8d  %14f\n", n, primes, wtime);
         }
         // n = n * n_factor;
         step++;
@@ -79,16 +129,19 @@ int main(int argc, char *argv[])
     /*
         Terminate.
     */
-    if (id == 0)
+    if (machine_id == 0)
     {
+        printf("W data\n");
+        for (int i=0;i<data_dim;i++) {
+            printf("%lf ",W[i]);
+        }
+        printf("\n");
+
         printf("\n");
         printf("Master process:\n");
         printf("  Normal end of execution.\n");
         printf("\n");
         timestamp();
-        total_time = ((double) (end - start)) / CLOCKS_PER_SEC;
-	    //calulate total time
-	    printf("\nTime: %f", total_time);
     }
 
     return 0;
