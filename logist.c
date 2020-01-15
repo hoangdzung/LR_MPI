@@ -29,19 +29,19 @@ int main(int argc, char *argv[])
     int ierr;
     double wtime;
 
-    // Read matrix data 
-    double **X = (double **) malloc(MAX_SIZE * sizeof(double *));
-    for (int i = 0; i < MAX_SIZE; ++i)
-        X[i] = malloc(MAX_SIZE * sizeof(double));
-
-    double *Y = (double *) malloc(MAX_SIZE * sizeof(double));
-
     FILE *file;
-    file = fopen("matrix2", "r");
+    file = fopen("logist.train", "r");
     
     fscanf(file, "%d", &n_samples);
     fscanf(file, "%d", &data_dim);
-    
+
+    // Read matrix data 
+    double **X = (double **) malloc(n_samples * sizeof(double *));
+    for (int i = 0; i < n_samples; ++i)
+        X[i] = malloc(data_dim * sizeof(double));
+
+    double *Y = (double *) malloc(n_samples * sizeof(double));
+
     int n_batches = (int) n_samples/BATCH_SIZE;
     data_dim = data_dim -1;
     double *W = (double *) malloc(data_dim * sizeof(double));
@@ -147,8 +147,8 @@ int main(int argc, char *argv[])
             start = batch_id * BATCH_SIZE;
             for (int i=0; i<batch_size_per_machine;i++) {
                 for (int j=0;j<data_dim;j++)
-                    X_batch[i][j] = X[start+machine_id*batch_size_per_machine+i][j];
-                Y_batch[i] = Y[start+machine_id*batch_size_per_machine+i];
+                    X_batch[i][j] = X[index[start+machine_id*batch_size_per_machine+i]][j];
+                Y_batch[i] = Y[index[start+machine_id*batch_size_per_machine+i]];
             }
 
             for(int i=0; i<batch_size_per_machine; ++i)
@@ -226,6 +226,62 @@ int main(int argc, char *argv[])
         for(int i=0;i<data_dim;i++) 
             printf("Machine %d: W %lf\n", machine_id, W[i]);
     }
+
+    /*
+        Evaluation in test set
+    */
+
+    file = fopen("logist.test", "r");
+    int n_samples_test;
+    int data_dim_test;
+    
+    fscanf(file, "%d", &n_samples_test);
+    fscanf(file, "%d", &data_dim_test);
+
+    double **X_test = (double **) malloc(n_samples_test * sizeof(double *));
+    for (int i = 0; i < n_samples_test; ++i)
+        X_test[i] = malloc(data_dim * sizeof(double));
+
+    double *Y_test = (double *) malloc(n_samples_test * sizeof(double));
+
+    n_batches = (int) n_samples_test/BATCH_SIZE;
+    data_dim_test = data_dim_test -1;
+
+    if (data_dim_test != data_dim) {
+        printf("File test error\n");
+        exit(1);
+    }
+
+    for (int i = 0; i < n_samples_test; i++) {
+        for (int j = 0; j < data_dim; j++)
+            if (!fscanf(file, "%lf", &X_test[i][j]))
+                break;
+        if (!fscanf(file, "%lf", &Y_test[i]))
+            break;
+    }
+
+    fclose(file);
+
+    /* 
+        Free all data
+    */
+    for (int i = 0; i < n_samples; ++i)
+        free(X[i]);
+    free(X);
+    free(Y);
+    for (int i = 0; i < n_samples_test; ++i)
+        free(X_test[i]);
+    free(X_test);
+    free(Y_test);
+    free(W);
+    free(grad);
+    free(part_grad);
+    free(index);
+    for (int i = 0; i < batch_size_per_machine; ++i)
+        free(X_batch[i]);
+    free(X_batch);
+    free(Y_batch);
+    free(temp_values);
 
     /*
         Terminate MPI.
