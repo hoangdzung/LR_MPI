@@ -12,11 +12,10 @@ double sigmoid(double x);
 
 int main(int argc, char *argv[])
 {
-    int debug = 1;
-    int max_step = 10000;
-    int batch_size = 3;
-    int step = 0;
-    double lr = 0.0001;
+    int DEBUG = 1;
+    int MAX_STEP = 10000;
+    int BATCH_SIZE = 3;
+    double LR = 0.0001;
     
     int n_samples;
     int data_dim;
@@ -26,10 +25,9 @@ int main(int argc, char *argv[])
     int ierr;
     double wtime;
 
-    int dummpy = 0;
     // Read Hyperparams
     if (argc > 1) {
-        debug = atoi(argv[1]);
+        DEBUG = atoi(argv[1]);
     }
     
     // Read matrix data 
@@ -46,7 +44,7 @@ int main(int argc, char *argv[])
     fscanf(file, "%d", &n_samples);
     fscanf(file, "%d", &data_dim);
     
-    int n_batches = (int) n_samples/batch_size;
+    int n_batches = (int) n_samples/BATCH_SIZE;
     data_dim = data_dim -1;
     double *W = (double *) malloc(data_dim * sizeof(double));
     double *grad = (double *) malloc(data_dim * sizeof(double));
@@ -79,7 +77,7 @@ int main(int argc, char *argv[])
     */
     ierr = MPI_Comm_rank(MPI_COMM_WORLD, &machine_id);
 
-    int batch_size_per_machine = (int) batch_size/n_machines;
+    int batch_size_per_machine = (int) BATCH_SIZE/n_machines;
 
     double **X_batch = (double **) malloc(batch_size_per_machine * sizeof(double *));
     for (int i = 0; i < batch_size_per_machine; ++i)
@@ -91,7 +89,7 @@ int main(int argc, char *argv[])
     if (machine_id == 0)
     {   
         timestamp ( );
-        if (debug) {
+        if (DEBUG) {
             printf("\nX data\n");
             for (int i=0;i<n_samples;i++) {
                 for (int j=0;j<data_dim;j++) {
@@ -108,7 +106,7 @@ int main(int argc, char *argv[])
             printf("\n\n");
             
             printf("Number of processes: %d\n", n_machines);
-            printf("Number of steps: %d\n", max_step);
+            printf("Number of steps: %d\n", MAX_STEP);
         }
         
         // Index init
@@ -120,7 +118,7 @@ int main(int argc, char *argv[])
             W[i] = (double)rand()/(double)(RAND_MAX);
         }
 
-        if (debug) {
+        if (DEBUG) {
             printf("Number of batch: %d\n\n",n_batches);
             // Print init weight
             for(int i=0;i<data_dim;i++) 
@@ -131,8 +129,9 @@ int main(int argc, char *argv[])
 
     // BCast init weight to all machine
     ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
-  
-    while (step < max_step)
+
+    int step = 0;  
+    while (step < MAX_STEP)
     {
         if (machine_id == 0)
         {
@@ -146,7 +145,7 @@ int main(int argc, char *argv[])
         int batch_id = 0;
         int start = 0;
         while(batch_id < n_batches) {
-            start = batch_id * batch_size;
+            start = batch_id * BATCH_SIZE;
             for (int i=0; i<batch_size_per_machine;i++) {
                 for (int j=0;j<data_dim;j++)
                     X_batch[i][j] = X[start+machine_id*batch_size_per_machine+i][j];
@@ -184,7 +183,7 @@ int main(int argc, char *argv[])
             // if (machine_id == 0)
             // {
             //     for (int i =0;i<data_dim;i++) {
-            //         W[i] = W[i] -lr * grad[i];
+            //         W[i] = W[i] -LR * grad[i];
             //     }
             //     wtime = MPI_Wtime() - wtime;
             //     // printf ( "Step %d time %14f\n", step, wtime );
@@ -200,10 +199,10 @@ int main(int argc, char *argv[])
             ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
             for (int i =0;i<data_dim;i++) {
-                W[i] = W[i] -lr * grad[i];
+                W[i] = W[i] -LR * grad[i];
             }
             /* ===================================================================================*/
-            if (debug) {
+            if (DEBUG) {
                 for(int i=0;i<data_dim;i++) 
                     printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
             } 
@@ -211,7 +210,7 @@ int main(int argc, char *argv[])
         }
         step++;
     }
-    if (debug) {
+    if (DEBUG) {
         for(int i=0;i<data_dim;i++) 
             printf("Machine %d: W %lf\n", machine_id, W[i]);
     }
