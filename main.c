@@ -11,11 +11,11 @@ void shuffle(int *array, size_t n);
     
 int main(int argc, char *argv[])
 {
-    int debug = 0;
-    int max_step = 10000000;
-    int batch_size = 9;
+    int debug = 1;
+    int max_step = 10000;
+    int batch_size = 3;
     int step = 0;
-    double lr = 0.0000001;
+    double lr = 0.0001;
     
     int n_samples;
     int data_dim;
