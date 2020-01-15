@@ -166,6 +166,7 @@ int main(int argc, char *argv[])
             }
             // X.T(XW-Y)
             for(int i=0; i<data_dim; ++i) {
+                part_grad[i] = 0;
                 for(int j=0; j<batch_size_per_machine; ++j)
                 {
                     part_grad[i]+=X_batch[j][i]*temp_values[j];
