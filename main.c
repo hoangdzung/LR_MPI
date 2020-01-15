@@ -11,7 +11,7 @@ void shuffle(int *array, size_t n);
     
 int main(int argc, char *argv[])
 {
-    int DEBUG = 1;
+    int DEBUG = 0;
     int EVAL_STEP = 100;
     int MAX_STEP = 10000;
     int BATCH_SIZE = 3;
@@ -28,13 +28,7 @@ int main(int argc, char *argv[])
     int ierr;
     double wtime;
 
-    // Read Hyperparams
-    if (argc > 1) {
-        DEBUG = atoi(argv[1]);
-    }
-    
     // Read matrix data 
-
     double **X = (double **) malloc(MAX_SIZE * sizeof(double *));
     for (int i = 0; i < MAX_SIZE; ++i)
         X[i] = malloc(MAX_SIZE * sizeof(double));
@@ -166,7 +160,11 @@ int main(int argc, char *argv[])
                 {
                     temp_values[i]+=X_batch[i][j]*W[j];
                 }
-                if (step% EVAL_STEP==0) 
+
+                if (step% EVAL_STEP==0) {
+                    part_mse += (temp_values[i] - Y_batch[i])*(temp_values[i] - Y_batch[i]);
+                }
+
                 temp_values[i] -= Y_batch[i];
             }
             // X.T(XW-Y)
@@ -211,6 +209,13 @@ int main(int argc, char *argv[])
                     printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
             } 
             batch_id++;
+        }
+        if (step% EVAL_STEP==0) {
+            ierr = MPI_Reduce(&part_mse, &mse, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (machine_id == 0) {
+                mse = sqrt(mse/(n_batches*BATCH_SIZE));
+                printf("Step %d mse %lf\n", step, mse);                
+            }
         }
         step++;
     }

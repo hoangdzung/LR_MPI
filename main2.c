@@ -12,11 +12,15 @@ double sigmoid(double x);
 
 int main(int argc, char *argv[])
 {
-    int DEBUG = 1;
+    int DEBUG = 0;
+    int EVAL_STEP = 100;
     int MAX_STEP = 10000;
     int BATCH_SIZE = 3;
     double LR = 0.0001;
-    
+
+    double part_acc = 0;
+    double acc = 0;
+
     int n_samples;
     int data_dim;
 
@@ -25,13 +29,7 @@ int main(int argc, char *argv[])
     int ierr;
     double wtime;
 
-    // Read Hyperparams
-    if (argc > 1) {
-        DEBUG = atoi(argv[1]);
-    }
-    
     // Read matrix data 
-
     double **X = (double **) malloc(MAX_SIZE * sizeof(double *));
     for (int i = 0; i < MAX_SIZE; ++i)
         X[i] = malloc(MAX_SIZE * sizeof(double));
@@ -133,6 +131,7 @@ int main(int argc, char *argv[])
     int step = 0;  
     while (step < MAX_STEP)
     {
+        part_acc = 0;
         if (machine_id == 0)
         {
             wtime = MPI_Wtime();
@@ -163,6 +162,12 @@ int main(int argc, char *argv[])
                     temp_values[i]+=X_batch[i][j]*W[j];
                 }
                 temp_values[i] = sigmoid(temp_values[i]);
+
+                if (step% EVAL_STEP==0) {
+                    if ((temp_values[i]-0.5)*(Y_batch[i]-0.5)>0) 
+                        part_acc +=1;
+                }
+
                 temp_values[i] -= Y_batch[i];
             }
             // X.T(XW-Y)
@@ -207,6 +212,13 @@ int main(int argc, char *argv[])
                     printf("Step %d Machine %d: W %lf\n", step, machine_id, W[i]);  
             } 
             batch_id++;
+        }
+        if (step% EVAL_STEP==0) {
+            ierr = MPI_Reduce(&part_acc, &acc, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (machine_id == 0) {
+                acc = acc/(n_batches*BATCH_SIZE);
+                printf("Step %d acc %lf\n", step, acc);                
+            }
         }
         step++;
     }
