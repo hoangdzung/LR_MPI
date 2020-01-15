@@ -173,19 +173,6 @@ int main(int argc, char *argv[])
                 }
             }
 
-            // for (int i=0;i<batch_size_per_machine;i++) {
-            //     printf("%d X[%d] %lf %lf\n",machine_id, i, X_batch[i][0],X_batch[i][1]);
-            // }
-
-            // for (int i=0;i<batch_size_per_machine;i++) {
-            //     printf("%d Y[%d] %lf \n",machine_id, i, Y_batch[i]);
-            // }
-
-
-            // for (int i =0;i<data_dim;i++) {
-            //     part_grad[i] = step;
-            // }
-
             /*
                 Combine grad and update weight using REDUCE
             */
@@ -205,7 +192,7 @@ int main(int argc, char *argv[])
             /* ===================================================================================*/
 
             /*
-                Combine grad and update weight using REDUCE
+                Combine grad and update weight using ALLREDUCE
             */
             /* ===================================================================================*/
             ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
