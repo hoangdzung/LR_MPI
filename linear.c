@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
     int DEBUG = 0;
     int EVAL_STEP = 100;
     int MAX_STEP = 10000;
-    int BATCH_SIZE = 3;
+    int BATCH_SIZE = 2;
     double LR = 0.0001;
     
     double part_mse = 0;
@@ -257,27 +257,36 @@ int main(int argc, char *argv[])
 
     fclose(file);
 
+    int batch_id = 0;
+    int start = 0;
+    part_mse = 0;
+    while(batch_id < n_batches) {
+        start = batch_id * BATCH_SIZE;
+        for (int i=0; i<batch_size_per_machine;i++) {
+            for (int j=0;j<data_dim;j++)
+                X_batch[i][j] = X_test[start+machine_id*batch_size_per_machine+i][j];
+            Y_batch[i] = Y_test[start+machine_id*batch_size_per_machine+i];
+        }
 
-    /* 
-        Free all data
-    */
-    for (int i = 0; i < n_samples; ++i)
-        free(X[i]);
-    free(X);
-    free(Y);
-    for (int i = 0; i < n_samples_test; ++i)
-        free(X_test[i]);
-    free(X_test);
-    free(Y_test);
-    free(W);
-    free(grad);
-    free(part_grad);
-    free(index);
-    for (int i = 0; i < batch_size_per_machine; ++i)
-        free(X_batch[i]);
-    free(X_batch);
-    free(Y_batch);
-    free(temp_values);
+        for(int i=0; i<batch_size_per_machine; ++i)
+        {
+            temp_values[i] = 0;
+        }
+        // XW-Y
+        for(int i=0; i<batch_size_per_machine; ++i) {
+            for(int j =0; j<data_dim; ++j)
+            {
+                temp_values[i]+=X_batch[i][j]*W[j];
+            }
+            part_mse += (temp_values[i] - Y_batch[i])*(temp_values[i] - Y_batch[i]);
+        }
+        batch_id++;
+    }
+    ierr = MPI_Reduce(&part_mse, &mse, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (machine_id == 0) {
+        mse = sqrt(mse/(n_batches*BATCH_SIZE));
+        printf("Test mse %lf\n", mse);                
+    }
 
     /*
         Terminate MPI.
@@ -301,6 +310,27 @@ int main(int argc, char *argv[])
         printf("\n");
         timestamp();
     }
+
+    /* 
+        Free all data
+    */
+    for (int i = 0; i < n_samples; ++i)
+        free(X[i]);
+    free(X);
+    free(Y);
+    for (int i = 0; i < n_samples_test; ++i)
+        free(X_test[i]);
+    free(X_test);
+    free(Y_test);
+    free(W);
+    free(grad);
+    free(part_grad);
+    free(index);
+    for (int i = 0; i < batch_size_per_machine; ++i)
+        free(X_batch[i]);
+    free(X_batch);
+    free(Y_batch);
+    free(temp_values);
 
     return 0;
 }
