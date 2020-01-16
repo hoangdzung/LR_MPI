@@ -27,7 +27,9 @@ int main(int argc, char *argv[])
     int machine_id;
     int n_machines;
     int ierr;
-    double wtime;
+    double totalTime = MPI_Wtime();
+    double comTime = 0;
+    double comSTime = 0;
 
     FILE *file;
     file = fopen("logist.train", "r");
@@ -127,7 +129,12 @@ int main(int argc, char *argv[])
     }
 
     // BCast init weight to all machine
+    comTime = MPI_Wtime();
+    comSTime = MPI_Wtime();
     ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+    if (machine_id == 0) {
+        comTime += MPI_Wtime() - comSTime;
+    }
 
     int step = 0;  
     while (step < MAX_STEP)
@@ -135,12 +142,15 @@ int main(int argc, char *argv[])
         part_acc = 0;
         if (machine_id == 0)
         {
-            wtime = MPI_Wtime();
             shuffle(index, n_samples);
+            comSTime = MPI_Wtime();
         }
 
         // BCast shuffled index to all machine
         ierr = MPI_Bcast (index, n_samples, MPI_INT, 0, MPI_COMM_WORLD );
+        if (machine_id == 0) {
+            comTime += MPI_Wtime() - comSTime;
+        }
 
         int batch_id = 0;
         int start = 0;
@@ -184,29 +194,32 @@ int main(int argc, char *argv[])
                 Combine grad and update weight using REDUCE
             */
             /* ===================================================================================*/
-            // ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
-
-            // if (machine_id == 0)
-            // {
-            //     for (int i =0;i<data_dim;i++) {
-            //         W[i] = W[i] -LR * grad[i];
-            //     }
-            //     wtime = MPI_Wtime() - wtime;
-            //     // printf ( "Step %d time %14f\n", step, wtime );
-            // }
-            // // BCast updated weight to all machine
-            // ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+            comSTime = MPI_Wtime();
+            ierr = MPI_Reduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+            if (machine_id == 0)
+            {
+                comTime += MPI_Wtime() - comSTime;
+                for (int i =0;i<data_dim;i++) {
+                    W[i] = W[i] -LR * grad[i];
+                }
+            }
+            // BCast updated weight to all machine
+            comSTime = MPI_Wtime();
+            ierr = MPI_Bcast (W, data_dim, MPI_DOUBLE, 0, MPI_COMM_WORLD );
+            if (machine_id == 0) {
+                comTime += MPI_Wtime() - comSTime;
+            }
             /* ===================================================================================*/
 
             /*
                 Combine grad and update weight using ALLREDUCE
             */
             /* ===================================================================================*/
-            ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+            // ierr = MPI_Allreduce(part_grad, grad, data_dim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
-            for (int i =0;i<data_dim;i++) {
-                W[i] = W[i] -LR * grad[i];
-            }
+            // for (int i =0;i<data_dim;i++) {
+            //     W[i] = W[i] -LR * grad[i];
+            // }
             /* ===================================================================================*/
             if (DEBUG) {
                 for(int i=0;i<data_dim;i++) 
@@ -215,8 +228,10 @@ int main(int argc, char *argv[])
             batch_id++;
         }
         if (step% EVAL_STEP==0) {
+            comSTime = MPI_Wtime();
             ierr = MPI_Reduce(&part_acc, &acc, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
             if (machine_id == 0) {
+                comTime += MPI_Wtime() - comSTime;
                 acc = acc/(n_batches*BATCH_SIZE);
                 printf("Step %d acc %lf\n", step, acc);                
             }
@@ -292,8 +307,10 @@ int main(int argc, char *argv[])
         }
         batch_id++;
     }
+    comSTime = MPI_Wtime();
     ierr = MPI_Reduce(&part_acc, &acc, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
     if (machine_id == 0) {
+        comTime += MPI_Wtime() - comSTime;
         acc = acc/(n_batches*BATCH_SIZE);
         printf("Test mse %lf\n", acc);                
     }
@@ -341,7 +358,10 @@ int main(int argc, char *argv[])
     free(X_batch);
     free(Y_batch);
     free(temp_values);
-
+    totalTime = MPI_Wtime() - totalTime;
+    // print Time, BTime
+    printf("\nCommunication Time: %.3f\n", comTime);
+    printf("Total Time: %.3f\n\n", totalTime);
     return 0;
 }
 
