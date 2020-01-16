@@ -33,14 +33,14 @@ int main(int argc, char *argv[])
     fscanf(file, "%d", &n_samples);
     fscanf(file, "%d", &data_dim);
     
-    // Read matrix data 
+    // Read matrix data , X = original values, append 1 for bias
     double **X = (double **) malloc(n_samples * sizeof(double *));
     for (int i = 0; i < n_samples; ++i)
-        X[i] = malloc(data_dim * sizeof(double));
+        X[i] = malloc(data_dim * sizeof(double)); 
 
     double *Y = (double *) malloc(n_samples * sizeof(double));
     int n_batches = (int) n_samples/BATCH_SIZE;
-    data_dim = data_dim -1;
+    // data_dim = data_dim -1;
     double *W = (double *) malloc(data_dim * sizeof(double));
     double *grad = (double *) malloc(data_dim * sizeof(double));
     double *part_grad = (double *) malloc(data_dim * sizeof(double));
@@ -48,9 +48,10 @@ int main(int argc, char *argv[])
     int *index = (int *) malloc(n_samples*sizeof(int));
 
     for (int i = 0; i < n_samples; i++) {
-        for (int j = 0; j < data_dim; j++)
+        for (int j = 0; j < data_dim - 1; j++)
             if (!fscanf(file, "%lf", &X[i][j]))
                 break;
+        X[i][data_dim-1] = 1;
         if (!fscanf(file, "%lf", &Y[i]))
             break;
     }
@@ -240,7 +241,6 @@ int main(int argc, char *argv[])
     double *Y_test = (double *) malloc(n_samples_test * sizeof(double));
 
     n_batches = (int) n_samples_test/BATCH_SIZE;
-    data_dim_test = data_dim_test -1;
 
     if (data_dim_test != data_dim) {
         printf("File test error\n");
@@ -248,9 +248,10 @@ int main(int argc, char *argv[])
     }
 
     for (int i = 0; i < n_samples_test; i++) {
-        for (int j = 0; j < data_dim; j++)
+        for (int j = 0; j < data_dim - 1; j++)
             if (!fscanf(file, "%lf", &X_test[i][j]))
                 break;
+        X_test[i][data_dim - 1] = 1;
         if (!fscanf(file, "%lf", &Y_test[i]))
             break;
     }
