@@ -6,15 +6,15 @@
 
 int main(int argc, char *argv[]);
 void timestamp ( );
-void shuffle(int *array, size_t n);
+void shuffle(int *array, int n);
     
 int main(int argc, char *argv[])
 {
     int DEBUG = 0;
     int EVAL_STEP = 100;
-    int MAX_STEP = 10000;
-    int BATCH_SIZE = 2;
-    double LR = 0.0001;
+    int MAX_STEP = 100;
+    int BATCH_SIZE = 1024;
+    double LR = 0.001;
     
     double part_mse = 0;
     double mse = 0;
@@ -172,6 +172,7 @@ int main(int argc, char *argv[])
 
                 if (step% EVAL_STEP==0) {
                     part_mse += (temp_values[i] - Y_batch[i])*(temp_values[i] - Y_batch[i]);
+                    // printf("Step %d %d Part mse: %.4f", step, machine_id, part_mse);
                 }
 
                 temp_values[i] -= Y_batch[i];
@@ -352,8 +353,10 @@ int main(int argc, char *argv[])
     free(temp_values);
     totalTime = MPI_Wtime() - totalTime;
     // print Time, BTime
-    printf("\nCommunication Time: %.3f\n", comTime);
-    printf("Total Time: %.3f\n\n", totalTime);
+    if (machine_id == 0) {
+        printf("\nCommunication Time: %.3f\n", comTime);
+        printf("Total Time: %.3f\n\n", totalTime);
+    }
     return 0;
 }
 
@@ -404,14 +407,14 @@ void timestamp ( void )
 # undef TIME_SIZE
 }
 
-void shuffle(int *array, size_t n)
+void shuffle(int *array, int n)
 {
     if (n > 1) 
     {
-        size_t i;
+        int i;
         for (i = 0; i < n - 1; i++) 
         {
-          size_t j = i + rand() / (RAND_MAX / (n - i) + 1);
+          int j = i + rand() / (RAND_MAX / (n - i) + 1);
           int t = array[j];
           array[j] = array[i];
           array[i] = t;
